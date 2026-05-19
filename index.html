@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Gym Logger</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1e40af">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="GymLog">
+  <link rel="apple-touch-icon" href="icon-192.svg">
+
+  <!-- Tailwind (CDN — no build step) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Dexie (IndexedDB wrapper — offline, persistent) -->
+  <script src="https://unpkg.com/dexie@3/dist/dexie.js"></script>
+
+  <style>
+    /* Lock full height, prevent iOS overscroll bounce */
+    html, body { height: 100%; overflow: hidden; background: #111827; }
+    #app { height: 100%; display: flex; flex-direction: column; }
+    #content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+    /* Hide number input spinners for cleaner mobile look */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+
+    /* Custom select arrow */
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    select option { background: #1f2937; color: white; }
+
+    /* Smooth tab transitions */
+    .tab-panel { animation: fadeIn 0.15s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Active state for buttons */
+    button:active { transform: scale(0.97); }
+  </style>
+</head>
+<body class="bg-gray-900 text-white font-sans">
+
+<div id="app">
+
+  <!-- ═══════════════════════ SCROLLABLE CONTENT ═══════════════════════ -->
+  <div id="content" class="pb-24">
+
+    <!-- ▸▸▸ LOG TAB ◂◂◂ -->
+    <div id="tab-log" class="tab-panel p-4">
+
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-5 pt-2">
+        <h1 class="text-2xl font-extrabold text-white">💪 Log Session</h1>
+        <span id="header-date" class="text-sm text-blue-400 font-medium"></span>
+      </div>
+
+      <!-- Date picker (DD/MM/YYYY text input — slashes auto-inserted) -->
+      <div class="mb-4">
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Date</label>
+        <input type="text" id="log-date" inputmode="numeric" maxlength="10" placeholder="DD/MM/YYYY"
+          autocomplete="off"
+          class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none text-base tracking-widest">
+      </div>
+
+      <!-- Day Type + Personal Feedback (side by side) -->
+      <div class="flex gap-3 mb-4">
+        <div class="flex-1">
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Day Type</label>
+          <select id="log-day-type"
+            class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none text-base">
+            <option value="">— Select —</option>
+            <option value="Push">💪 Push</option>
+            <option value="Pull">🔄 Pull</option>
+            <option value="Legs">🦵 Legs</option>
+          </select>
+        </div>
+        <div class="flex-1">
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Feedback</label>
+          <select id="log-feedback"
+            class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none text-base">
+            <option value="">— Select —</option>
+            <option value="Machine Maximum">⚙️ Machine Maximum</option>
+            <option value="Needs Improvement">📈 Needs Improvement</option>
+            <option value="Rough Set">💢 Rough Set</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Exercise -->
+      <div class="mb-3">
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Exercise</label>
+        <input type="text" id="log-exercise" list="exercise-list"
+          placeholder="e.g. Bench Press"
+          autocomplete="off" autocorrect="off" spellcheck="false"
+          class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none text-lg placeholder-gray-600">
+        <datalist id="exercise-list"></datalist>
+        <p id="last-hint" class="text-xs text-blue-400 mt-1 hidden"></p>
+      </div>
+
+      <!-- Weight + Unit -->
+      <div class="flex gap-2 mb-3">
+        <div class="flex-1">
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Weight</label>
+          <input type="number" id="log-weight" placeholder="0" min="0" step="any"
+            class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none text-2xl font-bold">
+        </div>
+        <div class="flex flex-col justify-end">
+          <button id="unit-toggle"
+            class="bg-blue-900 border border-blue-700 text-blue-300 font-bold rounded-xl px-4 py-3 text-sm min-w-[60px] hover:bg-blue-800 transition-colors">
+            kg
+          </button>
+        </div>
+      </div>
+
+      <!-- Reps + Sets -->
+      <div class="flex gap-3 mb-5">
+        <div class="flex-1">
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Reps</label>
+          <input type="number" id="log-reps" placeholder="0" min="1"
+            class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none text-2xl font-bold">
+        </div>
+        <div class="flex-1">
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Sets</label>
+          <input type="number" id="log-sets" placeholder="1" min="1" value="1"
+            class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none text-2xl font-bold">
+        </div>
+      </div>
+
+      <!-- Add Set Button -->
+      <button id="add-set-btn"
+        class="w-full bg-blue-600 hover:bg-blue-500 rounded-2xl py-4 text-xl font-extrabold mb-6 transition-colors shadow-lg shadow-blue-900/40">
+        + Add Set
+      </button>
+
+      <!-- Today's Session -->
+      <div id="today-log"></div>
+    </div>
+
+
+    <!-- ▸▸▸ HISTORY TAB ◂◂◂ -->
+    <div id="tab-history" class="tab-panel hidden p-4">
+
+      <div class="flex items-center justify-between mb-5 pt-2">
+        <h1 class="text-2xl font-extrabold text-white">📊 History</h1>
+      </div>
+
+      <input type="text" id="history-search" placeholder="🔍 Search exercises…"
+        class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none mb-4 placeholder-gray-500">
+
+      <div id="history-list"></div>
+    </div>
+
+
+    <!-- ▸▸▸ DATA / EXPORT TAB ◂◂◂ -->
+    <div id="tab-export" class="tab-panel hidden p-4">
+
+      <div class="pt-2 mb-5">
+        <h1 class="text-2xl font-extrabold text-white">📤 Data</h1>
+        <p class="text-sm text-gray-400 mt-1">Export a backup weekly so your data is never lost.</p>
+      </div>
+
+      <!-- Stats bar -->
+      <div id="stats-panel" class="bg-gray-800 rounded-2xl p-4 mb-6 grid grid-cols-3 gap-2 text-center border border-gray-700"></div>
+
+      <!-- Export -->
+      <button id="export-btn"
+        class="w-full bg-green-700 hover:bg-green-600 active:bg-green-800 rounded-2xl py-4 text-lg font-bold mb-3 transition-colors">
+        ⬇️ Export Backup (JSON)
+      </button>
+
+      <!-- Import -->
+      <label class="block w-full bg-gray-700 hover:bg-gray-600 active:bg-gray-800 rounded-2xl py-4 text-lg font-bold mb-3 text-center cursor-pointer transition-colors">
+        ⬆️ Import Backup (JSON)
+        <input type="file" id="import-file" accept=".json" class="hidden">
+      </label>
+
+      <!-- Clear -->
+      <button id="clear-btn"
+        class="w-full bg-red-900 hover:bg-red-800 active:bg-red-950 rounded-2xl py-4 text-lg font-bold transition-colors border border-red-800">
+        🗑️ Clear All Data
+      </button>
+
+      <!-- Install hint -->
+      <div id="install-banner" class="hidden mt-6 bg-blue-900/50 border border-blue-700 rounded-2xl p-4">
+        <p class="text-sm text-blue-200 font-medium mb-2">📱 Install as App</p>
+        <p class="text-xs text-blue-300">
+          <strong>Android Chrome:</strong> tap ⋮ → "Add to Home Screen"<br>
+          <strong>iPhone Safari:</strong> tap □↑ → "Add to Home Screen"
+        </p>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+
+
+  <!-- ═══════════════════════ BOTTOM NAV ═══════════════════════ -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 flex safe-area-inset">
+    <button class="nav-btn flex-1 py-3 flex flex-col items-center gap-0.5 text-blue-400" data-tab="log">
+      <span class="text-xl leading-tight">💪</span>
+      <span class="text-xs font-semibold">Log</span>
+    </button>
+    <button class="nav-btn flex-1 py-3 flex flex-col items-center gap-0.5 text-gray-500" data-tab="history">
+      <span class="text-xl leading-tight">📊</span>
+      <span class="text-xs font-semibold">History</span>
+    </button>
+    <button class="nav-btn flex-1 py-3 flex flex-col items-center gap-0.5 text-gray-500" data-tab="export">
+      <span class="text-xl leading-tight">📤</span>
+      <span class="text-xs font-semibold">Data</span>
+    </button>
+  </nav>
+
+</div><!-- /app -->
+
+
+<!-- ═══════════════════════ APP SCRIPT ═══════════════════════ -->
+<script>
+// ─────────────────────── DATABASE ───────────────────────
+const db = new Dexie('GymLogDB');
+// Version 1: original tables
+db.version(1).stores({
+  exercises: '++id, &name',
+  sets:      '++id, exerciseId, date, weight, reps, unit'
+});
+// Version 2: adds sessions table (dayType + feedback per day)
+db.version(2).stores({
+  exercises: '++id, &name',
+  sets:      '++id, exerciseId, date, weight, reps, unit',
+  sessions:  '++id, &date'
+});
+
+// ─────────────────────── STATE ───────────────────────
+let unit = localStorage.getItem('gymlog-unit') || 'kg';
+let currentTab = 'log';
+
+// ─────────────────────── INIT ───────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  const today = todayStr();
+  document.getElementById('log-date').value = formatDate(today);   // show DD/MM/YYYY
+  document.getElementById('header-date').textContent = formatDate(today);
+  document.getElementById('unit-toggle').textContent = unit;
+
+  await populateExerciseList();
+  await loadSessionIntoDropdowns(today);
+  await renderLog();
+  renderInstallBanner();
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+});
+
+// ─────────────────────── HELPERS ───────────────────────
+function todayStr() {
+  return new Date().toISOString().split('T')[0];
+}
+
+/** Returns date as DD/MM/YYYY (from internal YYYY-MM-DD) */
+function formatDate(d) {
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+
+/** Converts display DD/MM/YYYY → internal YYYY-MM-DD. Returns null if invalid. */
+function displayToDate(display) {
+  const parts = display.split('/');
+  if (parts.length !== 3) return null;
+  const [day, month, year] = parts;
+  if (!day || !month || year.length !== 4) return null;
+  const d = new Date(`${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}`);
+  if (isNaN(d.getTime())) return null;
+  return `${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}`;
+}
+
+/** Read the log-date input and return YYYY-MM-DD, or null if incomplete/invalid. */
+function getLogDate() {
+  return displayToDate(document.getElementById('log-date').value);
+}
+
+/** Epley 1RM estimate */
+function epley(weight, reps) {
+  if (reps <= 1) return weight;
+  return Math.round(weight * (1 + reps / 30));
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg, type = 'ok') {
+  const col = type === 'ok' ? 'bg-green-600' : 'bg-red-600';
+  const el = document.createElement('div');
+  el.className = `fixed top-5 left-1/2 -translate-x-1/2 ${col} text-white px-5 py-2.5 rounded-full text-sm font-semibold z-50 shadow-xl whitespace-nowrap`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2200);
+}
+
+/** Badge HTML for day type */
+function dayTypeBadge(val) {
+  if (!val) return '';
+  const map = {
+    Push: 'bg-orange-900/60 text-orange-300 border-orange-700',
+    Pull: 'bg-blue-900/60 text-blue-300 border-blue-700',
+    Legs: 'bg-green-900/60 text-green-300 border-green-700'
+  };
+  const cls = map[val] || 'bg-gray-700 text-gray-300 border-gray-600';
+  return `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border ${cls}">${escHtml(val)}</span>`;
+}
+
+/** Badge HTML for feedback */
+function feedbackBadge(val) {
+  if (!val) return '';
+  const map = {
+    'Machine Maximum':   'bg-purple-900/60 text-purple-300 border-purple-700',
+    'Needs Improvement': 'bg-yellow-900/60 text-yellow-300 border-yellow-700',
+    'Rough Set':         'bg-red-900/60 text-red-300 border-red-700'
+  };
+  const cls = map[val] || 'bg-gray-700 text-gray-300 border-gray-600';
+  return `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border ${cls}">${escHtml(val)}</span>`;
+}
+
+// ─────────────────────── TAB SWITCHING ───────────────────────
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+async function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.getElementById(`tab-${tab}`).classList.remove('hidden');
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.toggle('text-blue-400', b.dataset.tab === tab);
+    b.classList.toggle('text-gray-500', b.dataset.tab !== tab);
+  });
+  if (tab === 'history') await renderHistory();
+  if (tab === 'export')  await renderStats();
+}
+
+// ─────────────────────── UNIT TOGGLE ───────────────────────
+document.getElementById('unit-toggle').addEventListener('click', () => {
+  unit = unit === 'kg' ? 'lbs' : 'kg';
+  localStorage.setItem('gymlog-unit', unit);
+  document.getElementById('unit-toggle').textContent = unit;
+});
+
+// ─────────────────────── SESSION (day type + feedback) ───────────────────────
+
+/** Load saved dayType/feedback for a date into the dropdowns */
+async function loadSessionIntoDropdowns(date) {
+  const session = await db.sessions.where('date').equals(date).first();
+  document.getElementById('log-day-type').value = session?.dayType  || '';
+  document.getElementById('log-feedback').value  = session?.feedback || '';
+}
+
+/** Upsert the session record for the current date */
+async function saveSession() {
+  const date     = getLogDate();
+  const dayType  = document.getElementById('log-day-type').value;
+  const feedback = document.getElementById('log-feedback').value;
+  if (!date) return;
+
+  const existing = await db.sessions.where('date').equals(date).first();
+  if (existing) {
+    await db.sessions.update(existing.id, { dayType, feedback });
+  } else {
+    await db.sessions.add({ date, dayType, feedback });
+  }
+}
+
+// Auto-save when dropdowns change
+document.getElementById('log-day-type').addEventListener('change', saveSession);
+document.getElementById('log-feedback').addEventListener('change', saveSession);
+
+// ─────────────────────── EXERCISE AUTOCOMPLETE ───────────────────────
+async function populateExerciseList() {
+  const exercises = await db.exercises.orderBy('name').toArray();
+  const dl = document.getElementById('exercise-list');
+  dl.innerHTML = exercises.map(e => `<option value="${escHtml(e.name)}">`).join('');
+}
+
+/** When an exercise is chosen, show the last logged weight/reps as a hint */
+document.getElementById('log-exercise').addEventListener('change', async (e) => {
+  const name = e.target.value.trim();
+  const hint = document.getElementById('last-hint');
+  if (!name) { hint.classList.add('hidden'); return; }
+
+  const all = await db.exercises.toArray();
+  const ex = all.find(x => x.name.toLowerCase() === name.toLowerCase());
+  if (!ex) { hint.classList.add('hidden'); return; }
+
+  const lastSet = await db.sets.where('exerciseId').equals(ex.id).last();
+  if (lastSet) {
+    hint.textContent = `Last: ${lastSet.weight} ${lastSet.unit || unit} × ${lastSet.reps} reps`;
+    hint.classList.remove('hidden');
+  } else {
+    hint.classList.add('hidden');
+  }
+});
+
+// ─────────────────────── ADD SET ───────────────────────
+document.getElementById('add-set-btn').addEventListener('click', addSet);
+
+// Allow Enter key on reps/weight to trigger Add Set
+['log-weight','log-reps','log-sets'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter') addSet();
+  });
+});
+
+async function addSet() {
+  const exerciseName = document.getElementById('log-exercise').value.trim();
+  const weightRaw    = document.getElementById('log-weight').value;
+  const repsRaw      = document.getElementById('log-reps').value;
+  const setsRaw      = document.getElementById('log-sets').value;
+  const date         = getLogDate();
+
+  const weightVal = parseFloat(weightRaw);
+  const repsVal   = parseInt(repsRaw);
+  const setsCount = parseInt(setsRaw) || 1;
+
+  if (!exerciseName)                     { showToast('Enter an exercise name', 'err'); return; }
+  if (!date)                             { showToast('Enter a valid date (DD/MM/YYYY)', 'err'); return; }
+  if (isNaN(weightVal) || weightVal < 0) { showToast('Enter a valid weight', 'err'); return; }
+  if (isNaN(repsVal)   || repsVal < 1)   { showToast('Enter valid reps', 'err'); return; }
+
+  // Get or create exercise (case-insensitive lookup)
+  const all = await db.exercises.toArray();
+  let exercise = all.find(x => x.name.toLowerCase() === exerciseName.toLowerCase());
+  if (!exercise) {
+    const id = await db.exercises.add({ name: exerciseName });
+    exercise = { id, name: exerciseName };
+    await populateExerciseList();
+  }
+
+  // Bulk-add sets
+  const records = Array.from({ length: setsCount }, () => ({
+    exerciseId: exercise.id,
+    date,
+    weight: weightVal,
+    reps: repsVal,
+    unit
+  }));
+  await db.sets.bulkAdd(records);
+
+  // Ensure session record exists for this date
+  await saveSession();
+
+  const label = setsCount > 1 ? `${setsCount} sets` : '1 set';
+  showToast(`${label} logged ✓`);
+
+  // Clear inputs, keep exercise name for quick repeat
+  document.getElementById('log-weight').value = '';
+  document.getElementById('log-reps').value   = '';
+  document.getElementById('log-sets').value   = '1';
+  document.getElementById('log-weight').focus();
+
+  await renderLog();
+}
+
+// ─────────────────────── RENDER LOG ───────────────────────
+
+// Auto-insert slashes as the user types (e.g. 19 → 19/ → 19/05/ → 19/05/2026)
+document.getElementById('log-date').addEventListener('input', (e) => {
+  // Strip non-digits, re-insert slashes at positions 2 and 5
+  let digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+  let formatted = digits;
+  if (digits.length > 2) formatted = digits.slice(0,2) + '/' + digits.slice(2);
+  if (digits.length > 4) formatted = formatted.slice(0,5) + '/' + formatted.slice(5);
+  e.target.value = formatted;
+});
+
+// Trigger session load + re-render once a full DD/MM/YYYY is entered or on blur
+document.getElementById('log-date').addEventListener('blur', async (e) => {
+  const date = getLogDate();
+  if (!date) return;
+  document.getElementById('header-date').textContent = e.target.value;
+  await loadSessionIntoDropdowns(date);
+  await renderLog();
+});
+
+async function renderLog() {
+  const date    = getLogDate();
+  if (!date) { document.getElementById('today-log').innerHTML = ''; return; }
+  const allSets = await db.sets.where('date').equals(date).toArray();
+  const container = document.getElementById('today-log');
+
+  if (allSets.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-10">
+        <div class="text-4xl mb-3">🏋️</div>
+        <p class="text-gray-500 text-sm">No sets logged for this date yet.</p>
+        <p class="text-gray-600 text-xs mt-1">Fill in the fields above and tap <strong class="text-gray-500">+ Add Set</strong>.</p>
+      </div>`;
+    return;
+  }
+
+  // Group by exerciseId (preserve insertion order)
+  const order = [];
+  const byEx  = {};
+  for (const s of allSets) {
+    if (!byEx[s.exerciseId]) { order.push(s.exerciseId); byEx[s.exerciseId] = []; }
+    byEx[s.exerciseId].push(s);
+  }
+
+  const exObjs  = await db.exercises.bulkGet(order);
+  const exNames = {};
+  exObjs.forEach(e => { if (e) exNames[e.id] = e.name; });
+
+  const totalSets = allSets.length;
+  const totalVol  = allSets.reduce((acc, s) => acc + s.weight * s.reps, 0);
+
+  // Get session meta for this date
+  const session   = await db.sessions.where('date').equals(date).first();
+  const dayType   = session?.dayType  || '';
+  const feedback  = session?.feedback || '';
+  const metaBadges = (dayType || feedback)
+    ? `<div class="flex gap-2 flex-wrap mt-2">${dayTypeBadge(dayType)}${feedbackBadge(feedback)}</div>`
+    : '';
+
+  container.innerHTML = `
+    <div class="bg-gray-800 rounded-2xl p-4 mb-4 border border-gray-700/40">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Session · ${formatDate(date)}</span>
+      </div>
+      ${metaBadges}
+      <div class="flex gap-3 mt-3 text-center">
+        <div class="flex-1">
+          <div class="text-xl font-extrabold text-blue-400">${order.length}</div>
+          <div class="text-xs text-gray-500 mt-0.5">Exercises</div>
+        </div>
+        <div class="flex-1">
+          <div class="text-xl font-extrabold text-blue-400">${totalSets}</div>
+          <div class="text-xs text-gray-500 mt-0.5">Sets</div>
+        </div>
+        <div class="flex-1">
+          <div class="text-xl font-extrabold text-blue-400">${totalVol.toLocaleString()}</div>
+          <div class="text-xs text-gray-500 mt-0.5">Vol (${unit})</div>
+        </div>
+      </div>
+    </div>
+    ${order.map(eid => {
+      const sets = byEx[eid];
+      const name = exNames[eid] || 'Unknown';
+      const rows = sets.map((s, i) => `
+        <tr class="border-t border-gray-700/60">
+          <td class="py-2 text-gray-500 text-sm w-6">${i + 1}</td>
+          <td class="py-2 font-bold text-base">${s.weight}<span class="text-xs text-gray-500 ml-0.5">${s.unit || unit}</span></td>
+          <td class="py-2 text-gray-300">${s.reps}&nbsp;reps</td>
+          <td class="py-2 text-gray-500 text-sm">~${epley(s.weight, s.reps)}</td>
+          <td class="py-2 text-right w-8">
+            <button onclick="deleteSet(${s.id})"
+              class="text-red-500 hover:text-red-400 text-lg leading-none px-1">×</button>
+          </td>
+        </tr>`).join('');
+      return `
+        <div class="bg-gray-800 rounded-2xl p-4 mb-3 border border-gray-700/40">
+          <h3 class="font-extrabold text-blue-300 text-base mb-3">${escHtml(name)}</h3>
+          <table class="w-full">
+            <thead>
+              <tr class="text-xs text-gray-600 text-left">
+                <th class="pb-1 w-6">#</th>
+                <th class="pb-1">Weight</th>
+                <th class="pb-1">Reps</th>
+                <th class="pb-1">1RM~</th>
+                <th class="w-8"></th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    }).join('')}`;
+}
+
+async function deleteSet(id) {
+  if (!confirm('Delete this set?')) return;
+  await db.sets.delete(id);
+  await renderLog();
+}
+
+// ─────────────────────── HISTORY ───────────────────────
+async function renderHistory(filter = '') {
+  const container = document.getElementById('history-list');
+  let exercises = await db.exercises.orderBy('name').toArray();
+  if (filter) {
+    exercises = exercises.filter(e => e.name.toLowerCase().includes(filter.toLowerCase()));
+  }
+
+  if (exercises.length === 0) {
+    container.innerHTML = `<p class="text-gray-500 text-center py-12">No exercises found.</p>`;
+    return;
+  }
+
+  // Fetch all sessions for badge lookup
+  const allSessions = await db.sessions.toArray();
+  const sessionByDate = {};
+  allSessions.forEach(s => { sessionByDate[s.date] = s; });
+
+  // Compute PR & total sets for each exercise
+  const items = (await Promise.all(exercises.map(async ex => {
+    const sets = await db.sets.where('exerciseId').equals(ex.id).toArray();
+    if (!sets.length) return null;
+    const pr      = sets.reduce((b, s) => (s.weight > b.weight ? s : b), sets[0]);
+    const best1RM = sets.reduce((b, s) => Math.max(b, epley(s.weight, s.reps)), 0);
+    return { ex, sets, pr, best1RM };
+  }))).filter(Boolean);
+
+  container.innerHTML = items.map(({ ex, sets, pr, best1RM }) => {
+    const byDate = {};
+    sets.forEach(s => { (byDate[s.date] = byDate[s.date] || []).push(s); });
+    const dates = Object.keys(byDate).sort().reverse();
+
+    const detail = dates.map(d => {
+      const ds  = byDate[d];
+      const sess = sessionByDate[d];
+      const badges = (sess?.dayType || sess?.feedback)
+        ? `<div class="flex gap-1.5 flex-wrap mb-2">${dayTypeBadge(sess.dayType)}${feedbackBadge(sess.feedback)}</div>`
+        : '';
+      const rows = ds.map((s, i) => `
+        <tr class="border-t border-gray-700/60">
+          <td class="py-1.5 text-gray-500 text-sm w-6">${i+1}</td>
+          <td class="py-1.5 font-semibold">${s.weight}<span class="text-xs text-gray-500 ml-0.5">${s.unit||unit}</span></td>
+          <td class="py-1.5 text-gray-300">${s.reps}&nbsp;reps</td>
+          <td class="py-1.5 text-gray-500 text-sm">~${epley(s.weight, s.reps)}</td>
+        </tr>`).join('');
+      return `
+        <div class="mb-3">
+          <div class="text-sm font-bold text-gray-300 mb-1">${formatDate(d)}</div>
+          ${badges}
+          <table class="w-full">
+            <thead><tr class="text-xs text-gray-600">
+              <th class="text-left pb-1 w-6">#</th>
+              <th class="text-left pb-1">Weight</th>
+              <th class="text-left pb-1">Reps</th>
+              <th class="text-left pb-1">1RM~</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    }).join('<div class="border-t border-gray-700/40 my-2"></div>');
+
+    return `
+      <div class="bg-gray-800 rounded-2xl mb-3 overflow-hidden border border-gray-700/40">
+        <button class="w-full px-4 py-3.5 text-left flex justify-between items-center gap-3"
+          onclick="toggleAccordion('hist-${ex.id}')">
+          <div class="min-w-0">
+            <div class="font-bold text-white truncate">${escHtml(ex.name)}</div>
+            <div class="text-xs text-gray-500 mt-0.5">${sets.length} sets · ${dates.length} sessions</div>
+          </div>
+          <div class="text-right shrink-0">
+            <div class="text-blue-400 font-extrabold">${pr.weight} ${pr.unit||unit}</div>
+            <div class="text-xs text-gray-500">PR · ~${best1RM} 1RM</div>
+          </div>
+        </button>
+        <div id="hist-${ex.id}" class="hidden px-4 pb-4 border-t border-gray-700/40 pt-3">
+          ${detail}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function toggleAccordion(id) {
+  document.getElementById(id).classList.toggle('hidden');
+}
+
+document.getElementById('history-search').addEventListener('input', e => {
+  renderHistory(e.target.value);
+});
+
+// ─────────────────────── STATS ───────────────────────
+async function renderStats() {
+  const totalSets      = await db.sets.count();
+  const totalExercises = await db.exercises.count();
+  const allSets        = await db.sets.toArray();
+  const sessions       = new Set(allSets.map(s => s.date)).size;
+
+  document.getElementById('stats-panel').innerHTML = `
+    <div>
+      <div class="text-2xl font-extrabold text-blue-400">${sessions}</div>
+      <div class="text-xs text-gray-500 mt-1">Sessions</div>
+    </div>
+    <div>
+      <div class="text-2xl font-extrabold text-blue-400">${totalExercises}</div>
+      <div class="text-xs text-gray-500 mt-1">Exercises</div>
+    </div>
+    <div>
+      <div class="text-2xl font-extrabold text-blue-400">${totalSets}</div>
+      <div class="text-xs text-gray-500 mt-1">Total Sets</div>
+    </div>`;
+}
+
+// ─────────────────────── EXPORT ───────────────────────
+document.getElementById('export-btn').addEventListener('click', async () => {
+  const exercises = await db.exercises.toArray();
+  const sets      = await db.sets.toArray();
+  const sessions  = await db.sessions.toArray();
+  const payload   = { version: 2, exportedAt: new Date().toISOString(), exercises, sets, sessions };
+  const blob      = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url       = URL.createObjectURL(blob);
+  const a         = Object.assign(document.createElement('a'), {
+    href: url,
+    download: `gymlog-backup-${todayStr()}.json`
+  });
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Backup downloaded ✓');
+});
+
+// ─────────────────────── IMPORT ───────────────────────
+document.getElementById('import-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!data.exercises || !data.sets) throw new Error('Invalid backup file format.');
+
+    if (!confirm(`Import ${data.exercises.length} exercises and ${data.sets.length} sets?\n\nThis will MERGE with existing data (no duplicates overwritten).`)) {
+      e.target.value = ''; return;
+    }
+
+    // Import exercises (skip duplicates by name)
+    const newExerciseMap = {};
+    for (const ex of data.exercises) {
+      const existing = (await db.exercises.toArray())
+        .find(x => x.name.toLowerCase() === ex.name.toLowerCase());
+      if (existing) {
+        newExerciseMap[ex.id] = existing.id;
+      } else {
+        const newId = await db.exercises.add({ name: ex.name });
+        newExerciseMap[ex.id] = newId;
+      }
+    }
+
+    // Import sets (remap exerciseId)
+    let imported = 0;
+    for (const s of data.sets) {
+      const newExId = newExerciseMap[s.exerciseId];
+      if (newExId !== undefined) {
+        await db.sets.add({
+          exerciseId: newExId,
+          date:   s.date,
+          weight: s.weight,
+          reps:   s.reps,
+          unit:   s.unit || 'kg'
+        });
+        imported++;
+      }
+    }
+
+    // Import sessions (skip dates that already exist)
+    if (data.sessions) {
+      for (const sess of data.sessions) {
+        const exists = await db.sessions.where('date').equals(sess.date).first();
+        if (!exists) {
+          await db.sessions.add({ date: sess.date, dayType: sess.dayType || '', feedback: sess.feedback || '' });
+        }
+      }
+    }
+
+    showToast(`Imported ${imported} sets ✓`);
+    await populateExerciseList();
+    await loadSessionIntoDropdowns(getLogDate() || todayStr());
+    await renderLog();
+  } catch (err) {
+    showToast('Import failed: ' + err.message, 'err');
+  }
+  e.target.value = '';
+});
+
+// ─────────────────────── CLEAR ALL ───────────────────────
+document.getElementById('clear-btn').addEventListener('click', async () => {
+  if (!confirm('⚠️ Delete ALL gym data permanently?\n\nThis cannot be undone. Export a backup first.')) return;
+  if (!confirm('Last chance — really delete everything?')) return;
+  await db.sets.clear();
+  await db.exercises.clear();
+  await db.sessions.clear();
+  document.getElementById('log-day-type').value = '';
+  document.getElementById('log-feedback').value  = '';
+  await populateExerciseList();
+  await renderLog();
+  await renderStats();
+  showToast('All data cleared');
+});
+
+// ─────────────────────── INSTALL BANNER ───────────────────────
+function renderInstallBanner() {
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+  if (!isStandalone) {
+    document.getElementById('install-banner').classList.remove('hidden');
+  }
+}
+</script>
+
+</body>
+</html>
