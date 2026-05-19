@@ -130,14 +130,20 @@
           <input type="number" id="log-reps" placeholder="0" min="1"
             class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none text-2xl font-bold">
         </div>
-        <div class="flex-1">
+        <div class="flex-1" id="sets-count-wrap">
           <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Sets</label>
           <input type="number" id="log-sets" placeholder="1" min="1" value="1"
             class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none text-2xl font-bold">
         </div>
       </div>
 
-      <!-- Add Set Button -->
+      <!-- Edit mode banner (hidden by default) -->
+      <div id="edit-banner" class="hidden items-center justify-between bg-amber-900/50 border border-amber-700 rounded-xl px-4 py-2 mb-3">
+        <span class="text-sm text-amber-300 font-semibold">✏️ Editing set</span>
+        <button onclick="cancelEdit()" class="text-amber-400 hover:text-amber-200 text-sm font-bold underline">Cancel</button>
+      </div>
+
+      <!-- Add / Update Set Button -->
       <button id="add-set-btn"
         class="w-full bg-blue-600 hover:bg-blue-500 rounded-2xl py-4 text-xl font-extrabold mb-6 transition-colors shadow-lg shadow-blue-900/40">
         + Add Set
@@ -242,6 +248,7 @@ db.version(2).stores({
 // ─────────────────────── STATE ───────────────────────
 let unit = localStorage.getItem('gymlog-unit') || 'kg';
 let currentTab = 'log';
+let editingSetId = null;   // null = add mode, number = edit mode
 
 // ─────────────────────── INIT ───────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -421,20 +428,31 @@ document.getElementById('add-set-btn').addEventListener('click', addSet);
 });
 
 async function addSet() {
-  const exerciseName = document.getElementById('log-exercise').value.trim();
-  const weightRaw    = document.getElementById('log-weight').value;
-  const repsRaw      = document.getElementById('log-reps').value;
-  const setsRaw      = document.getElementById('log-sets').value;
-  const date         = getLogDate();
-
+  const weightRaw = document.getElementById('log-weight').value;
+  const repsRaw   = document.getElementById('log-reps').value;
   const weightVal = parseFloat(weightRaw);
   const repsVal   = parseInt(repsRaw);
-  const setsCount = parseInt(setsRaw) || 1;
 
-  if (!exerciseName)                     { showToast('Enter an exercise name', 'err'); return; }
-  if (!date)                             { showToast('Enter a valid date (DD/MM/YYYY)', 'err'); return; }
   if (isNaN(weightVal) || weightVal < 0) { showToast('Enter a valid weight', 'err'); return; }
   if (isNaN(repsVal)   || repsVal < 1)   { showToast('Enter valid reps', 'err'); return; }
+
+  // ── UPDATE MODE ──────────────────────────────────────────
+  if (editingSetId !== null) {
+    await db.sets.update(editingSetId, { weight: weightVal, reps: repsVal, unit });
+    showToast('Set updated ✓');
+    cancelEdit();
+    await renderLog();
+    return;
+  }
+
+  // ── ADD MODE ─────────────────────────────────────────────
+  const exerciseName = document.getElementById('log-exercise').value.trim();
+  const setsRaw      = document.getElementById('log-sets').value;
+  const date         = getLogDate();
+  const setsCount    = parseInt(setsRaw) || 1;
+
+  if (!exerciseName) { showToast('Enter an exercise name', 'err'); return; }
+  if (!date)         { showToast('Enter a valid date (DD/MM/YYYY)', 'err'); return; }
 
   // Get or create exercise (case-insensitive lookup)
   const all = await db.exercises.toArray();
@@ -455,8 +473,9 @@ async function addSet() {
   }));
   await db.sets.bulkAdd(records);
 
-  // Ensure session record exists for this date
+  // Save session (day type + feedback), then reset feedback dropdown
   await saveSession();
+  document.getElementById('log-feedback').value = '';
 
   const label = setsCount > 1 ? `${setsCount} sets` : '1 set';
   showToast(`${label} logged ✓`);
@@ -560,7 +579,9 @@ async function renderLog() {
           <td class="py-2 font-bold text-base">${s.weight}<span class="text-xs text-gray-500 ml-0.5">${s.unit || unit}</span></td>
           <td class="py-2 text-gray-300">${s.reps}&nbsp;reps</td>
           <td class="py-2 text-gray-500 text-sm">~${epley(s.weight, s.reps)}</td>
-          <td class="py-2 text-right w-8">
+          <td class="py-2 text-right">
+            <button onclick="startEditSet(${s.id})"
+              class="text-blue-400 hover:text-blue-300 text-base leading-none px-1 mr-1">✏️</button>
             <button onclick="deleteSet(${s.id})"
               class="text-red-500 hover:text-red-400 text-lg leading-none px-1">×</button>
           </td>
@@ -575,7 +596,7 @@ async function renderLog() {
                 <th class="pb-1">Weight</th>
                 <th class="pb-1">Reps</th>
                 <th class="pb-1">1RM~</th>
-                <th class="w-8"></th>
+                <th class="w-16"></th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -588,6 +609,47 @@ async function deleteSet(id) {
   if (!confirm('Delete this set?')) return;
   await db.sets.delete(id);
   await renderLog();
+}
+
+async function startEditSet(id) {
+  const s  = await db.sets.get(id);
+  if (!s) return;
+  const ex = await db.exercises.get(s.exerciseId);
+
+  // Pre-fill form fields
+  if (ex) document.getElementById('log-exercise').value = ex.name;
+  document.getElementById('log-weight').value = s.weight;
+  document.getElementById('log-reps').value   = s.reps;
+
+  // Enter edit mode
+  editingSetId = id;
+  document.getElementById('add-set-btn').textContent = '✓ Update Set';
+  document.getElementById('add-set-btn').classList.replace('bg-blue-600', 'bg-amber-600');
+  document.getElementById('add-set-btn').classList.replace('hover:bg-blue-500', 'hover:bg-amber-500');
+  document.getElementById('add-set-btn').classList.replace('shadow-blue-900/40', 'shadow-amber-900/40');
+  document.getElementById('edit-banner').classList.remove('hidden');
+  document.getElementById('edit-banner').classList.add('flex');
+  document.getElementById('sets-count-wrap').classList.add('hidden');
+
+  // Scroll to top of form so inputs are visible
+  document.getElementById('content').scrollTo({ top: 0, behavior: 'smooth' });
+  document.getElementById('log-weight').focus();
+}
+
+function cancelEdit() {
+  editingSetId = null;
+  document.getElementById('add-set-btn').textContent = '+ Add Set';
+  document.getElementById('add-set-btn').classList.replace('bg-amber-600', 'bg-blue-600');
+  document.getElementById('add-set-btn').classList.replace('hover:bg-amber-500', 'hover:bg-blue-500');
+  document.getElementById('add-set-btn').classList.replace('shadow-amber-900/40', 'shadow-blue-900/40');
+  document.getElementById('edit-banner').classList.add('hidden');
+  document.getElementById('edit-banner').classList.remove('flex');
+  document.getElementById('sets-count-wrap').classList.remove('hidden');
+
+  // Clear form
+  document.getElementById('log-weight').value = '';
+  document.getElementById('log-reps').value   = '';
+  document.getElementById('log-sets').value   = '1';
 }
 
 // ─────────────────────── HISTORY ───────────────────────
