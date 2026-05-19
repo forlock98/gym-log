@@ -87,28 +87,16 @@
         </button>
       </div>
 
-      <!-- Day Type + Personal Feedback (side by side) -->
-      <div class="flex gap-3 mb-4">
-        <div class="flex-1">
-          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Day Type</label>
-          <select id="log-day-type"
-            class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none text-base">
-            <option value="">— Select —</option>
-            <option value="Push">💪 Push</option>
-            <option value="Pull">🔄 Pull</option>
-            <option value="Legs">🦵 Legs</option>
-          </select>
-        </div>
-        <div class="flex-1">
-          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Feedback</label>
-          <select id="log-feedback"
-            class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none text-base">
-            <option value="">— Select —</option>
-            <option value="Machine Maximum">⚙️ Machine Maximum</option>
-            <option value="Needs Improvement">📈 Needs Improvement</option>
-            <option value="Rough Set">💢 Rough Set</option>
-          </select>
-        </div>
+      <!-- Day Type — session level (saved per day) -->
+      <div class="mb-4">
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Day Type</label>
+        <select id="log-day-type"
+          class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none text-base">
+          <option value="">— Select —</option>
+          <option value="Push">💪 Push</option>
+          <option value="Pull">🔄 Pull</option>
+          <option value="Legs">🦵 Legs</option>
+        </select>
       </div>
 
       <!-- Exercise -->
@@ -149,6 +137,18 @@
           <input type="number" id="log-sets" placeholder="1" min="1" value="1"
             class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none text-2xl font-bold">
         </div>
+      </div>
+
+      <!-- Feedback — set level (saved per individual set) -->
+      <div class="mb-4">
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Set Feedback</label>
+        <select id="log-feedback"
+          class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none text-base">
+          <option value="">— Select —</option>
+          <option value="Machine Maximum">⚙️ Machine Maximum</option>
+          <option value="Needs Improvement">📈 Needs Improvement</option>
+          <option value="Rough Set">💢 Rough Set</option>
+        </select>
       </div>
 
       <!-- Edit mode banner (hidden by default) -->
@@ -254,6 +254,12 @@ db.version(1).stores({
 });
 // Version 2: adds sessions table (dayType + feedback per day)
 db.version(2).stores({
+  exercises: '++id, &name',
+  sets:      '++id, exerciseId, date, weight, reps, unit',
+  sessions:  '++id, &date'
+});
+// Version 3: feedback moves from session-level to per-set
+db.version(3).stores({
   exercises: '++id, &name',
   sets:      '++id, exerciseId, date, weight, reps, unit',
   sessions:  '++id, &date'
@@ -380,31 +386,29 @@ document.getElementById('unit-toggle').addEventListener('click', () => {
 
 // ─────────────────────── SESSION (day type + feedback) ───────────────────────
 
-/** Load saved dayType/feedback for a date into the dropdowns */
+/** Load saved dayType for a date into the dropdown (feedback is per-set, not per-day) */
 async function loadSessionIntoDropdowns(date) {
   const session = await db.sessions.where('date').equals(date).first();
-  document.getElementById('log-day-type').value = session?.dayType  || '';
-  document.getElementById('log-feedback').value  = session?.feedback || '';
+  document.getElementById('log-day-type').value = session?.dayType || '';
+  document.getElementById('log-feedback').value  = '';   // always blank — per-set
 }
 
-/** Upsert the session record for the current date */
+/** Upsert the session record for the current date (dayType only — feedback is per-set) */
 async function saveSession() {
-  const date     = getLogDate();
-  const dayType  = document.getElementById('log-day-type').value;
-  const feedback = document.getElementById('log-feedback').value;
+  const date    = getLogDate();
+  const dayType = document.getElementById('log-day-type').value;
   if (!date) return;
 
   const existing = await db.sessions.where('date').equals(date).first();
   if (existing) {
-    await db.sessions.update(existing.id, { dayType, feedback });
+    await db.sessions.update(existing.id, { dayType });
   } else {
-    await db.sessions.add({ date, dayType, feedback });
+    await db.sessions.add({ date, dayType });
   }
 }
 
-// Auto-save when dropdowns change
+// Day type auto-saves to session on change; feedback is saved per-set in addSet()
 document.getElementById('log-day-type').addEventListener('change', saveSession);
-document.getElementById('log-feedback').addEventListener('change', saveSession);
 
 // ─────────────────────── EXERCISE AUTOCOMPLETE ───────────────────────
 async function populateExerciseList() {
@@ -453,7 +457,8 @@ async function addSet() {
 
   // ── UPDATE MODE ──────────────────────────────────────────
   if (editingSetId !== null) {
-    await db.sets.update(editingSetId, { weight: weightVal, reps: repsVal, unit });
+    const feedback = document.getElementById('log-feedback').value;
+    await db.sets.update(editingSetId, { weight: weightVal, reps: repsVal, unit, feedback });
     showToast('Set updated ✓');
     cancelEdit();
     await renderLog();
@@ -478,17 +483,19 @@ async function addSet() {
     await populateExerciseList();
   }
 
-  // Bulk-add sets
+  // Bulk-add sets (feedback is stored per set)
+  const feedback = document.getElementById('log-feedback').value;
   const records = Array.from({ length: setsCount }, () => ({
     exerciseId: exercise.id,
     date,
     weight: weightVal,
     reps: repsVal,
-    unit
+    unit,
+    feedback
   }));
   await db.sets.bulkAdd(records);
 
-  // Save session (day type + feedback), then reset feedback dropdown
+  // Save session (day type only), then reset feedback dropdown
   await saveSession();
   document.getElementById('log-feedback').value = '';
 
@@ -591,12 +598,11 @@ async function renderLog() {
   const totalSets = allSets.length;
   const totalVol  = allSets.reduce((acc, s) => acc + s.weight * s.reps, 0);
 
-  // Get session meta for this date
-  const session   = await db.sessions.where('date').equals(date).first();
-  const dayType   = session?.dayType  || '';
-  const feedback  = session?.feedback || '';
-  const metaBadges = (dayType || feedback)
-    ? `<div class="flex gap-2 flex-wrap mt-2">${dayTypeBadge(dayType)}${feedbackBadge(feedback)}</div>`
+  // Get session meta for this date (dayType only — feedback is per-set)
+  const session  = await db.sessions.where('date').equals(date).first();
+  const dayType  = session?.dayType || '';
+  const metaBadges = dayType
+    ? `<div class="flex gap-2 flex-wrap mt-2">${dayTypeBadge(dayType)}</div>`
     : '';
 
   container.innerHTML = `
@@ -625,28 +631,31 @@ async function renderLog() {
       const name = exNames[eid] || 'Unknown';
       const rows = sets.map((s, i) => `
         <tr class="border-t border-gray-700/60">
-          <td class="py-2 text-gray-500 text-sm w-6">${i + 1}</td>
+          <td class="py-2 text-gray-500 text-sm">${i + 1}</td>
           <td class="py-2 font-bold text-base">${s.weight}<span class="text-xs text-gray-500 ml-0.5">${s.unit || unit}</span></td>
           <td class="py-2 text-gray-300">${s.reps}&nbsp;reps</td>
           <td class="py-2 text-gray-500 text-sm">~${epley(s.weight, s.reps)}</td>
+          <td class="py-2">${s.feedback ? feedbackBadge(s.feedback) : ''}</td>
           <td class="py-2 text-right">
             <button onclick="startEditSet(${s.id})"
               class="text-blue-400 hover:text-blue-300 text-base leading-none px-1 mr-1">✏️</button>
             <button onclick="deleteSet(${s.id})"
               class="text-red-500 hover:text-red-400 text-lg leading-none px-1">×</button>
           </td>
-        </tr>`).join('');
+        </tr>`
+      ).join('');
       return `
         <div class="bg-gray-800 rounded-2xl p-4 mb-3 border border-gray-700/40">
           <h3 class="font-extrabold text-blue-300 text-base mb-3">${escHtml(name)}</h3>
-          <table class="w-full">
+          <table class="w-full table-fixed">
             <thead>
               <tr class="text-xs text-gray-600 text-left">
-                <th class="pb-1 w-6">#</th>
-                <th class="pb-1">Weight</th>
-                <th class="pb-1">Reps</th>
-                <th class="pb-1">1RM~</th>
-                <th class="w-16"></th>
+                <th class="pb-1 w-[6%]">#</th>
+                <th class="pb-1 w-[18%]">Weight</th>
+                <th class="pb-1 w-[15%]">Reps</th>
+                <th class="pb-1 w-[13%]">1RM~</th>
+                <th class="pb-1 w-[32%]">Feedback</th>
+                <th class="pb-1 w-[16%]"></th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -668,8 +677,9 @@ async function startEditSet(id) {
 
   // Pre-fill form fields
   if (ex) document.getElementById('log-exercise').value = ex.name;
-  document.getElementById('log-weight').value = s.weight;
-  document.getElementById('log-reps').value   = s.reps;
+  document.getElementById('log-weight').value   = s.weight;
+  document.getElementById('log-reps').value     = s.reps;
+  document.getElementById('log-feedback').value = s.feedback || '';
 
   // Enter edit mode
   editingSetId = id;
@@ -737,26 +747,29 @@ async function renderHistory(filter = '') {
     const detail = dates.map(d => {
       const ds  = byDate[d];
       const sess = sessionByDate[d];
-      const badges = (sess?.dayType || sess?.feedback)
-        ? `<div class="flex gap-1.5 flex-wrap mb-2">${dayTypeBadge(sess.dayType)}${feedbackBadge(sess.feedback)}</div>`
+      const badges = sess?.dayType
+        ? `<div class="flex gap-1.5 flex-wrap mb-2">${dayTypeBadge(sess.dayType)}</div>`
         : '';
       const rows = ds.map((s, i) => `
         <tr class="border-t border-gray-700/60">
-          <td class="py-1.5 text-gray-500 text-sm w-6">${i+1}</td>
+          <td class="py-1.5 text-gray-500 text-sm">${i+1}</td>
           <td class="py-1.5 font-semibold">${s.weight}<span class="text-xs text-gray-500 ml-0.5">${s.unit||unit}</span></td>
           <td class="py-1.5 text-gray-300">${s.reps}&nbsp;reps</td>
           <td class="py-1.5 text-gray-500 text-sm">~${epley(s.weight, s.reps)}</td>
-        </tr>`).join('');
+          <td class="py-1.5">${s.feedback ? feedbackBadge(s.feedback) : ''}</td>
+        </tr>`
+      ).join('');
       return `
         <div class="mb-3">
           <div class="text-sm font-bold text-gray-300 mb-1">${formatDate(d)}</div>
           ${badges}
-          <table class="w-full">
-            <thead><tr class="text-xs text-gray-600">
-              <th class="text-left pb-1 w-6">#</th>
-              <th class="text-left pb-1">Weight</th>
-              <th class="text-left pb-1">Reps</th>
-              <th class="text-left pb-1">1RM~</th>
+          <table class="w-full table-fixed">
+            <thead><tr class="text-xs text-gray-600 text-left">
+              <th class="pb-1 w-[6%]">#</th>
+              <th class="pb-1 w-[20%]">Weight</th>
+              <th class="pb-1 w-[17%]">Reps</th>
+              <th class="pb-1 w-[15%]">1RM~</th>
+              <th class="pb-1">Feedback</th>
             </tr></thead>
             <tbody>${rows}</tbody>
           </table>
