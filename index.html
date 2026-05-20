@@ -221,6 +221,114 @@
       </div>
     </div>
 
+    <!-- ▸▸▸ COFFEE TAB ◂◂◂ -->
+    <div id="tab-coffee" class="tab-panel hidden p-4">
+
+      <!-- Header + view toggle -->
+      <div class="flex items-center justify-between mb-4 pt-2">
+        <h1 class="text-2xl font-extrabold text-white">☕ Coffee</h1>
+        <div class="flex bg-gray-800 border border-gray-700 rounded-xl p-1 gap-1">
+          <button id="coffee-btn-log" onclick="setCoffeeView('log')"
+            class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors bg-blue-600 text-white">Log</button>
+          <button id="coffee-btn-cal" onclick="setCoffeeView('cal')"
+            class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors text-gray-400">Calendar</button>
+        </div>
+      </div>
+
+      <!-- Entry form -->
+      <div class="bg-gray-800 rounded-2xl p-4 mb-4 border border-gray-700/40">
+
+        <!-- Date with arrows -->
+        <div class="mb-3">
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Date</label>
+          <div class="flex items-center gap-2">
+            <button onclick="shiftCoffeeDate(-1)"
+              class="bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-xl text-gray-300 hover:bg-gray-600 transition-colors select-none">‹</button>
+            <input type="text" id="coffee-date" inputmode="numeric" maxlength="10" placeholder="DD/MM/YYYY"
+              autocomplete="off"
+              class="flex-1 bg-gray-700 rounded-xl px-3 py-2.5 text-white border border-gray-600 focus:border-blue-500 focus:outline-none text-base tracking-widest text-center">
+            <button onclick="shiftCoffeeDate(1)"
+              class="bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-xl text-gray-300 hover:bg-gray-600 transition-colors select-none">›</button>
+          </div>
+        </div>
+
+        <!-- Location -->
+        <div class="mb-3">
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Location</label>
+          <input type="text" id="coffee-location" placeholder="e.g. Home, Starbucks, Office"
+            autocomplete="off"
+            class="w-full bg-gray-700 rounded-xl px-4 py-2.5 text-white border border-gray-600 focus:border-blue-500 focus:outline-none text-base placeholder-gray-500">
+        </div>
+
+        <!-- Shots + Rating -->
+        <div class="flex gap-3 mb-4">
+          <div class="flex-1">
+            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Espresso Shots</label>
+            <input type="number" id="coffee-shots" placeholder="0" min="0" step="1"
+              class="w-full bg-gray-700 rounded-xl px-4 py-2.5 text-white border border-gray-600 focus:border-blue-500 focus:outline-none text-2xl font-bold">
+          </div>
+          <div class="flex-1">
+            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Rating <span class="text-gray-600 normal-case">(optional /10)</span></label>
+            <input type="number" id="coffee-rating" placeholder="—" min="0" max="10" step="0.1"
+              class="w-full bg-gray-700 rounded-xl px-4 py-2.5 text-white border border-gray-600 focus:border-blue-500 focus:outline-none text-2xl font-bold">
+          </div>
+        </div>
+
+        <button id="coffee-add-btn"
+          class="w-full bg-amber-600 hover:bg-amber-500 rounded-2xl py-3.5 text-lg font-extrabold transition-colors shadow-lg shadow-amber-900/30">
+          + Log Coffee
+        </button>
+      </div>
+
+      <!-- Log view -->
+      <div id="coffee-log-view">
+        <div id="coffee-log-list"></div>
+      </div>
+
+      <!-- Calendar view -->
+      <div id="coffee-cal-view" class="hidden">
+        <!-- Month nav -->
+        <div class="flex items-center justify-between mb-3">
+          <button onclick="shiftCalMonth(-1)"
+            class="bg-gray-800 border border-gray-700 rounded-xl px-4 py-2 text-gray-300 hover:bg-gray-700 transition-colors select-none text-lg">‹</button>
+          <span id="cal-month-label" class="text-base font-bold text-white"></span>
+          <button onclick="shiftCalMonth(1)"
+            class="bg-gray-800 border border-gray-700 rounded-xl px-4 py-2 text-gray-300 hover:bg-gray-700 transition-colors select-none text-lg">›</button>
+        </div>
+
+        <!-- Day-of-week headers -->
+        <div class="grid grid-cols-7 gap-0.5 mb-0.5 max-w-[292px] mx-auto">
+          <div class="text-center text-[10px] font-semibold text-gray-500 py-0.5">M</div>
+          <div class="text-center text-[10px] font-semibold text-gray-500 py-0.5">T</div>
+          <div class="text-center text-[10px] font-semibold text-gray-500 py-0.5">W</div>
+          <div class="text-center text-[10px] font-semibold text-gray-500 py-0.5">T</div>
+          <div class="text-center text-[10px] font-semibold text-gray-500 py-0.5">F</div>
+          <div class="text-center text-[10px] font-semibold text-gray-500 py-0.5">S</div>
+          <div class="text-center text-[10px] font-semibold text-gray-500 py-0.5">S</div>
+        </div>
+
+        <!-- Calendar grid -->
+        <div id="cal-grid" class="grid grid-cols-7 gap-0.5 max-w-[292px] mx-auto"></div>
+
+        <!-- Legend -->
+        <div class="flex items-center gap-2 mt-4 flex-wrap justify-center">
+          <span class="text-xs text-gray-500">Shots:</span>
+          <span class="flex items-center gap-1 text-xs text-gray-400"><span class="inline-block w-4 h-4 rounded" style="background:#f9fafb;border:1px solid #374151"></span>0</span>
+          <span class="flex items-center gap-1 text-xs text-gray-400"><span class="inline-block w-4 h-4 rounded" style="background:#d1d5db;border:1px solid #374151"></span>1</span>
+          <span class="flex items-center gap-1 text-xs text-gray-400"><span class="inline-block w-4 h-4 rounded" style="background:#9ca3af;border:1px solid #374151"></span>2</span>
+          <span class="flex items-center gap-1 text-xs text-gray-400"><span class="inline-block w-4 h-4 rounded" style="background:#4b5563;border:1px solid #374151"></span>3</span>
+          <span class="flex items-center gap-1 text-xs text-gray-400"><span class="inline-block w-4 h-4 rounded" style="background:#111827;border:1px solid #374151"></span>4+</span>
+        </div>
+
+        <!-- Monthly summary -->
+        <div id="cal-summary" class="mt-4"></div>
+
+        <!-- Monthly log list (all entries in visible month, latest → earliest) -->
+        <div id="cal-month-log" class="mt-4"></div>
+      </div>
+
+    </div>
+
   </div><!-- /content -->
 
 
@@ -233,6 +341,10 @@
     <button class="nav-btn flex-1 py-3 flex flex-col items-center gap-0.5 text-gray-500" data-tab="history">
       <span class="text-xl leading-tight">📊</span>
       <span class="text-xs font-semibold">History</span>
+    </button>
+    <button class="nav-btn flex-1 py-3 flex flex-col items-center gap-0.5 text-gray-500" data-tab="coffee">
+      <span class="text-xl leading-tight">☕</span>
+      <span class="text-xs font-semibold">Coffee</span>
     </button>
     <button class="nav-btn flex-1 py-3 flex flex-col items-center gap-0.5 text-gray-500" data-tab="export">
       <span class="text-xl leading-tight">📤</span>
@@ -263,6 +375,13 @@ db.version(3).stores({
   exercises: '++id, &name',
   sets:      '++id, exerciseId, date, weight, reps, unit',
   sessions:  '++id, &date'
+});
+// Version 4: coffee/caffeine tracker
+db.version(4).stores({
+  exercises: '++id, &name',
+  sets:      '++id, exerciseId, date, weight, reps, unit',
+  sessions:  '++id, &date',
+  coffee:    '++id, date'
 });
 
 // ─────────────────────── STATE ───────────────────────
@@ -374,6 +493,7 @@ async function switchTab(tab) {
     b.classList.toggle('text-gray-500', b.dataset.tab !== tab);
   });
   if (tab === 'history') await renderHistory();
+  if (tab === 'coffee')  await renderCoffeeTab();
   if (tab === 'export')  await renderStats();
 }
 
@@ -831,7 +951,8 @@ document.getElementById('export-btn').addEventListener('click', async () => {
   const exercises = await db.exercises.toArray();
   const sets      = await db.sets.toArray();
   const sessions  = await db.sessions.toArray();
-  const payload   = { version: 2, exportedAt: new Date().toISOString(), exercises, sets, sessions };
+  const coffee    = await db.coffee.toArray();
+  const payload   = { version: 4, exportedAt: new Date().toISOString(), exercises, sets, sessions, coffee };
   const blob      = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url       = URL.createObjectURL(blob);
   const a         = Object.assign(document.createElement('a'), {
@@ -896,6 +1017,13 @@ document.getElementById('import-file').addEventListener('change', async (e) => {
       }
     }
 
+    // Import coffee entries
+    if (data.coffee) {
+      for (const c of data.coffee) {
+        await db.coffee.add({ date: c.date, location: c.location || '', shots: c.shots || 0, rating: c.rating ?? null });
+      }
+    }
+
     showToast(`Imported ${imported} sets ✓`);
     await populateExerciseList();
     await loadSessionIntoDropdowns(getLogDate() || todayStr());
@@ -913,6 +1041,7 @@ document.getElementById('clear-btn').addEventListener('click', async () => {
   await db.sets.clear();
   await db.exercises.clear();
   await db.sessions.clear();
+  await db.coffee.clear();
   document.getElementById('log-day-type').value = '';
   document.getElementById('log-feedback').value  = '';
   await populateExerciseList();
@@ -920,6 +1049,337 @@ document.getElementById('clear-btn').addEventListener('click', async () => {
   await renderStats();
   showToast('All data cleared');
 });
+
+// ═══════════════════════════════════════════════════════════════
+// ─────────────────────── COFFEE TRACKER ─────────────────────────
+// ═══════════════════════════════════════════════════════════════
+
+let coffeeView     = 'log';                      // 'log' | 'cal'
+let coffeeCalYear  = new Date().getFullYear();
+let coffeeCalMonth = new Date().getMonth();      // 0-indexed
+let selectedCalDay = null;                       // 'YYYY-MM-DD' or null
+
+const MONTH_NAMES = ['January','February','March','April','May','June',
+                     'July','August','September','October','November','December'];
+
+// ── Coffee date input helpers ────────────────────────────────
+function getCoffeeDate() { return displayToDate(document.getElementById('coffee-date').value); }
+
+async function shiftCoffeeDate(delta) {
+  const current = getCoffeeDate() || todayStr();
+  const d = new Date(current);
+  d.setDate(d.getDate() + delta);
+  document.getElementById('coffee-date').value = formatDate(d.toISOString().split('T')[0]);
+  if (coffeeView === 'log') await renderCoffeeLog();
+}
+
+document.getElementById('coffee-date').addEventListener('input', (e) => {
+  const el = e.target;
+  if (el.selectionStart !== el.value.length) return;
+  let digits = el.value.replace(/\D/g, '').slice(0, 8);
+  let fmt = digits;
+  if (digits.length > 2) fmt = digits.slice(0,2) + '/' + digits.slice(2);
+  if (digits.length > 4) fmt = fmt.slice(0,5) + '/' + fmt.slice(5);
+  el.value = fmt;
+});
+
+document.getElementById('coffee-date').addEventListener('blur', async () => {
+  if (coffeeView === 'log') await renderCoffeeLog();
+});
+
+// ── View toggle ──────────────────────────────────────────────
+function setCoffeeView(view) {
+  coffeeView = view;
+  document.getElementById('coffee-log-view').classList.toggle('hidden', view !== 'log');
+  document.getElementById('coffee-cal-view').classList.toggle('hidden', view !== 'cal');
+  document.getElementById('coffee-btn-log').className =
+    'px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ' +
+    (view === 'log' ? 'bg-blue-600 text-white' : 'text-gray-400');
+  document.getElementById('coffee-btn-cal').className =
+    'px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ' +
+    (view === 'cal' ? 'bg-blue-600 text-white' : 'text-gray-400');
+  if (view === 'cal') renderCoffeeCalendar();
+  else                renderCoffeeLog();
+}
+
+// ── Init coffee tab ──────────────────────────────────────────
+async function renderCoffeeTab() {
+  // Set date to today if blank
+  if (!document.getElementById('coffee-date').value) {
+    document.getElementById('coffee-date').value = formatDate(todayStr());
+  }
+  if (coffeeView === 'log') await renderCoffeeLog();
+  else                      await renderCoffeeCalendar();
+}
+
+// ── Add coffee entry ─────────────────────────────────────────
+document.getElementById('coffee-add-btn').addEventListener('click', async () => {
+  const date     = getCoffeeDate();
+  const location = document.getElementById('coffee-location').value.trim();
+  const shotsRaw = document.getElementById('coffee-shots').value;
+  const ratingRaw= document.getElementById('coffee-rating').value;
+
+  if (!date)                               { showToast('Enter a valid date', 'err'); return; }
+  if (shotsRaw === '' || isNaN(parseInt(shotsRaw))) { showToast('Enter number of shots', 'err'); return; }
+
+  const shots  = parseInt(shotsRaw);
+  const rating = ratingRaw !== '' ? parseFloat(ratingRaw) : null;
+
+  if (rating !== null && (rating < 0 || rating > 10)) { showToast('Rating must be 0–10', 'err'); return; }
+
+  await db.coffee.add({ date, location, shots, rating });
+  showToast('Coffee logged ✓');
+
+  document.getElementById('coffee-shots').value   = '';
+  document.getElementById('coffee-rating').value  = '';
+  document.getElementById('coffee-location').value= '';
+
+  if (coffeeView === 'log') await renderCoffeeLog();
+  else                      await renderCoffeeCalendar();
+});
+
+// ── Delete coffee entry ──────────────────────────────────────
+async function deleteCoffeeEntry(id) {
+  if (!confirm('Delete this entry?')) return;
+  await db.coffee.delete(id);
+  if (coffeeView === 'log') await renderCoffeeLog();
+  else                      await renderCoffeeCalendar();
+}
+
+// ── Render log list (selected day only) ─────────────────────
+async function renderCoffeeLog() {
+  const date      = getCoffeeDate();
+  const container = document.getElementById('coffee-log-list');
+
+  if (!date) {
+    container.innerHTML = `<p class="text-gray-500 text-center py-6 text-sm">Enter a valid date above.</p>`;
+    return;
+  }
+
+  const entries = await db.coffee.where('date').equals(date).toArray();
+
+  if (!entries.length) {
+    container.innerHTML = `
+      <div class="text-center py-8">
+        <div class="text-3xl mb-2">☕</div>
+        <p class="text-gray-500 text-sm">No coffee logged for ${formatDate(date)}.</p>
+      </div>`;
+    return;
+  }
+
+  const totalShots = entries.reduce((acc, e) => acc + (e.shots || 0), 0);
+
+  container.innerHTML = `
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-sm font-bold text-white">${formatDate(date)}</span>
+      <span class="text-xs font-semibold px-2 py-0.5 rounded-full border"
+        style="${shotsStyle(totalShots, true)}">${totalShots} shot${totalShots !== 1 ? 's' : ''} total</span>
+    </div>
+    ${entries.map(e => `
+      <div class="flex items-center justify-between bg-gray-800 rounded-xl px-3 py-2.5 mb-2 border border-gray-700/40">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="text-amber-400 font-extrabold text-lg">${e.shots} shot${e.shots !== 1 ? 's' : ''}</span>
+            ${e.rating !== null && e.rating !== undefined
+              ? `<span class="text-xs text-yellow-300 font-semibold">★ ${e.rating}/10</span>` : ''}
+          </div>
+          ${e.location ? `<div class="text-xs text-gray-400 mt-0.5">📍 ${escHtml(e.location)}</div>` : ''}
+        </div>
+        <button onclick="deleteCoffeeEntry(${e.id})"
+          class="text-red-500 hover:text-red-400 text-lg leading-none px-2 ml-2 shrink-0">×</button>
+      </div>`).join('')}`;
+}
+
+// ── Shot colour helpers ──────────────────────────────────────
+function shotsToColor(shots) {
+  if (!shots || shots === 0) return { bg: '#f9fafb', text: '#111827', border: '#d1d5db' };
+  if (shots === 1)           return { bg: '#d1d5db', text: '#111827', border: '#9ca3af' };
+  if (shots === 2)           return { bg: '#9ca3af', text: '#111827', border: '#6b7280' };
+  if (shots === 3)           return { bg: '#4b5563', text: '#ffffff', border: '#374151' };
+  return                            { bg: '#111827', text: '#ffffff', border: '#030712' };
+}
+
+function shotsStyle(shots, asBadge = false) {
+  const c = shotsToColor(shots);
+  if (asBadge) return `background:${c.bg};color:${c.text};border-color:${c.border}`;
+  return `background:${c.bg};color:${c.text}`;
+}
+
+// ── Render calendar ──────────────────────────────────────────
+async function renderCoffeeCalendar() {
+  const year  = coffeeCalYear;
+  const month = coffeeCalMonth;
+
+  // Month label
+  document.getElementById('cal-month-label').textContent = `${MONTH_NAMES[month]} ${year}`;
+
+  // Fetch all entries for this month
+  const pad   = n => String(n).padStart(2,'0');
+  const first = `${year}-${pad(month+1)}-01`;
+  const last  = `${year}-${pad(month+1)}-${new Date(year, month+1, 0).getDate()}`;
+  const entries = await db.coffee.where('date').between(first, last, true, true).toArray();
+
+  // Build shots map: date → total shots
+  const shotsMap = {};
+  entries.forEach(e => { shotsMap[e.date] = (shotsMap[e.date] || 0) + (e.shots || 0); });
+
+  // Build grid
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDow    = new Date(year, month, 1).getDay();        // 0=Sun
+  const offset      = (firstDow + 6) % 7;                      // convert to Mon=0
+
+  const cells = [];
+  // Empty cells before the 1st
+  for (let i = 0; i < offset; i++) cells.push('<div></div>');
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${year}-${pad(month+1)}-${pad(day)}`;
+    const shots   = shotsMap[dateStr] || 0;
+    const c       = shotsToColor(shots);
+    const isToday = dateStr === todayStr();
+    const isSel   = dateStr === selectedCalDay;
+    const ring    = isSel  ? 'box-shadow:0 0 0 2px #3b82f6'
+                  : isToday ? 'box-shadow:0 0 0 2px #f59e0b'
+                  : '';
+    cells.push(`
+      <button onclick="selectCalDay('${dateStr}')"
+        class="rounded flex items-center justify-center font-bold transition-transform active:scale-95"
+        style="width:40px;height:40px;font-size:12px;background:${c.bg};color:${c.text};${ring}">
+        ${day}
+      </button>`);
+  }
+
+  document.getElementById('cal-grid').innerHTML = cells.join('');
+
+  // ── Monthly summary ──────────────────────────────────────
+  const summaryEl = document.getElementById('cal-summary');
+
+  if (!entries.length) {
+    summaryEl.innerHTML = '';
+  } else {
+    // Days elapsed: for current month use today's day number; for others use full month
+    const now = new Date();
+    const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+    const daysElapsed = isCurrentMonth ? now.getDate() : new Date(year, month + 1, 0).getDate();
+    const totalShots  = entries.reduce((a, e) => a + (e.shots || 0), 0);
+    const avgShots    = (totalShots / daysElapsed).toFixed(1);
+
+    // Location stats (ignore blank locations)
+    const locEntries = entries.filter(e => e.location && e.location.trim());
+    const locCount   = {};
+    locEntries.forEach(e => { locCount[e.location] = (locCount[e.location] || 0) + 1; });
+    const uniqueLocs  = Object.keys(locCount).length;
+    const mostVisited = uniqueLocs
+      ? Object.entries(locCount).sort((a,b) => b[1] - a[1])[0]
+      : null;
+
+    // Top rated: avg rating per location (only entries with a rating)
+    const ratedEntries = entries.filter(e => e.rating !== null && e.rating !== undefined && e.location?.trim());
+    const locRating    = {};
+    const locRatingCnt = {};
+    ratedEntries.forEach(e => {
+      locRating[e.location]    = (locRating[e.location]    || 0) + e.rating;
+      locRatingCnt[e.location] = (locRatingCnt[e.location] || 0) + 1;
+    });
+    const topRated = Object.keys(locRating).length
+      ? Object.entries(locRating)
+          .map(([loc, sum]) => ({ loc, avg: sum / locRatingCnt[loc] }))
+          .sort((a, b) => b.avg - a.avg)[0]
+      : null;
+
+    summaryEl.innerHTML = `
+      <div class="bg-gray-800 rounded-2xl p-4 border border-gray-700/40">
+        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">${MONTH_NAMES[month]} ${year} · Summary</div>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div class="bg-gray-700/50 rounded-xl p-3">
+            <div class="text-xs text-gray-500 mb-1">Avg shots / day</div>
+            <div class="text-xl font-extrabold text-amber-400">${avgShots}</div>
+            <div class="text-[10px] text-gray-600 mt-0.5">over ${daysElapsed} days</div>
+          </div>
+          <div class="bg-gray-700/50 rounded-xl p-3">
+            <div class="text-xs text-gray-500 mb-1">Locations</div>
+            <div class="text-xl font-extrabold text-white">${uniqueLocs || '—'}</div>
+            <div class="text-[10px] text-gray-600 mt-0.5">unique spots</div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-gray-700/50 rounded-xl p-3">
+            <div class="text-xs text-gray-500 mb-1">Most visited</div>
+            ${mostVisited
+              ? `<div class="text-sm font-bold text-white truncate">📍 ${escHtml(mostVisited[0])}</div>
+                 <div class="text-[10px] text-gray-500 mt-0.5">${mostVisited[1]} visit${mostVisited[1] !== 1 ? 's' : ''}</div>`
+              : `<div class="text-sm text-gray-600">—</div>`}
+          </div>
+          <div class="bg-gray-700/50 rounded-xl p-3">
+            <div class="text-xs text-gray-500 mb-1">Top rated</div>
+            ${topRated
+              ? `<div class="text-sm font-bold text-white truncate">📍 ${escHtml(topRated.loc)}</div>
+                 <div class="text-[10px] text-yellow-500 mt-0.5">★ ${topRated.avg.toFixed(1)} avg</div>`
+              : `<div class="text-sm text-gray-600">—</div>`}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // ── Monthly log list ─────────────────────────────────────
+  const monthLog = document.getElementById('cal-month-log');
+
+  if (!entries.length) {
+    monthLog.innerHTML = `<p class="text-gray-500 text-center text-sm py-4">No coffee logged in ${MONTH_NAMES[month]} ${year}.</p>`;
+    return;
+  }
+
+  // Sort all entries for this month latest → earliest
+  const sorted = [...entries].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+
+  // Group by date
+  const byDate = {};
+  sorted.forEach(e => { (byDate[e.date] = byDate[e.date] || []).push(e); });
+  const dates = Object.keys(byDate).sort().reverse();
+
+  monthLog.innerHTML = `
+    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">${MONTH_NAMES[month]} ${year} — all entries</div>
+    ${dates.map(d => {
+      const dayEntries = byDate[d];
+      const totalShots = dayEntries.reduce((a, e) => a + (e.shots || 0), 0);
+      return `
+        <div class="mb-3">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-sm font-bold text-white">${formatDate(d)}</span>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full border"
+              style="${shotsStyle(totalShots, true)}">${totalShots} shot${totalShots !== 1 ? 's' : ''}</span>
+          </div>
+          ${dayEntries.map(e => `
+            <div class="flex items-center justify-between bg-gray-800 rounded-xl px-3 py-2.5 mb-1.5 border border-gray-700/40">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-amber-400 font-bold">${e.shots} shot${e.shots !== 1 ? 's' : ''}</span>
+                  ${e.rating !== null && e.rating !== undefined
+                    ? `<span class="text-xs text-yellow-300">★ ${e.rating}/10</span>` : ''}
+                </div>
+                ${e.location ? `<div class="text-xs text-gray-400 mt-0.5">📍 ${escHtml(e.location)}</div>` : ''}
+              </div>
+              <button onclick="deleteCoffeeEntry(${e.id})"
+                class="text-red-500 hover:text-red-400 text-lg leading-none px-2 ml-2 shrink-0">×</button>
+            </div>`).join('')}
+        </div>`;
+    }).join('')}`;
+}
+
+// Month navigation
+function shiftCalMonth(delta) {
+  coffeeCalMonth += delta;
+  if (coffeeCalMonth > 11) { coffeeCalMonth = 0;  coffeeCalYear++; }
+  if (coffeeCalMonth < 0)  { coffeeCalMonth = 11; coffeeCalYear--; }
+  selectedCalDay = null;
+  renderCoffeeCalendar();
+}
+
+// Tap a day cell — just moves the highlight ring
+async function selectCalDay(dateStr) {
+  selectedCalDay = selectedCalDay === dateStr ? null : dateStr; // toggle off if tapped again
+  await renderCoffeeCalendar();
+}
 
 // ─────────────────────── INSTALL BANNER ───────────────────────
 function renderInstallBanner() {
