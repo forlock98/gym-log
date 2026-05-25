@@ -173,10 +173,11 @@
                 class="w-full bg-gray-800 rounded-xl px-4 py-3 text-white border border-gray-700 focus:border-blue-500 focus:outline-none text-lg placeholder-gray-600"
               />
               <!-- Custom exercise dropdown -->
-              <div id="exercise-dropdown"
+              <div
+                id="exercise-dropdown"
                 class="hidden absolute left-0 right-0 top-full mt-1 z-50 bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden"
-                style="max-height:280px;overflow-y:auto">
-              </div>
+                style="max-height: 280px; overflow-y: auto"
+              ></div>
             </div>
             <p id="last-hint" class="text-xs text-blue-400 mt-1 hidden"></p>
           </div>
@@ -874,7 +875,7 @@
           name: "Push Day", // ← rename to e.g. 'Push Day'
           exercises: [
             "Chest Press", // ← replace with your exercises, in order
-            "Incline Bench Press",
+            "Inclined Chest Press",
             "Overhead Press",
             "Chest Press Machine",
             "Shoulder Press Machine",
@@ -1141,33 +1142,41 @@
 
       // ─────────────────────── EXERCISE PICKER ───────────────────────
 
-      let pickerData = { programName: '', programExs: [], allOtherExs: [] };
+      let pickerData = { programName: "", programExs: [], allOtherExs: [] };
       let pickerOpen = false;
 
       /** Build picker data from DB (call whenever program/date/sets change) */
       async function populateExerciseList(date) {
         if (!date) date = getLogDate() || todayStr();
-        const programId = parseInt(document.getElementById('log-program').value) || null;
+        const programId =
+          parseInt(document.getElementById("log-program").value) || null;
 
         // Which exercises already logged today?
-        const todaySets  = await db.sets.where('date').equals(date).toArray();
-        const todayExIds = new Set(todaySets.map(s => s.exerciseId));
-        const allExArr   = await db.exercises.toArray();
+        const todaySets = await db.sets.where("date").equals(date).toArray();
+        const todayExIds = new Set(todaySets.map((s) => s.exerciseId));
+        const allExArr = await db.exercises.toArray();
         const loggedToday = new Set(
-          allExArr.filter(e => todayExIds.has(e.id)).map(e => e.name.toLowerCase())
+          allExArr
+            .filter((e) => todayExIds.has(e.id))
+            .map((e) => e.name.toLowerCase()),
         );
 
-        let programName = '';
-        let programExs  = [];
+        let programName = "";
+        let programExs = [];
         if (programId) {
-          const prog    = await db.programs.get(programId);
-          programName   = prog?.name || '';
-          const progExs = await db.programExercises.where('programId').equals(programId).sortBy('order');
-          const libs    = await db.exercisesLib.bulkGet(progExs.map(pe => pe.exerciseLibId));
-          programExs    = libs.filter(Boolean).map(lib => ({
-            name:        lib.name,
-            muscleGroup: lib.muscleGroup || '',
-            done:        loggedToday.has(lib.name.toLowerCase())
+          const prog = await db.programs.get(programId);
+          programName = prog?.name || "";
+          const progExs = await db.programExercises
+            .where("programId")
+            .equals(programId)
+            .sortBy("order");
+          const libs = await db.exercisesLib.bulkGet(
+            progExs.map((pe) => pe.exerciseLibId),
+          );
+          programExs = libs.filter(Boolean).map((lib) => ({
+            name: lib.name,
+            muscleGroup: lib.muscleGroup || "",
+            done: loggedToday.has(lib.name.toLowerCase()),
           }));
         }
 
@@ -1175,64 +1184,88 @@
         if (!programId) {
           // No program selected → show every library exercise (with muscle group + done status)
           // plus any logged exercises that aren't in the library
-          const allLibEx   = await db.exercisesLib.toArray();
-          const libNameSet = new Set(allLibEx.map(e => e.name.toLowerCase()));
+          const allLibEx = await db.exercisesLib.toArray();
+          const libNameSet = new Set(allLibEx.map((e) => e.name.toLowerCase()));
           allOtherExs = [
             ...allLibEx
               .sort((a, b) => a.name.localeCompare(b.name))
-              .map(e => ({ name: e.name, muscleGroup: e.muscleGroup || '', done: loggedToday.has(e.name.toLowerCase()) })),
+              .map((e) => ({
+                name: e.name,
+                muscleGroup: e.muscleGroup || "",
+                done: loggedToday.has(e.name.toLowerCase()),
+              })),
             ...allExArr
-              .filter(e => !libNameSet.has(e.name.toLowerCase()))
+              .filter((e) => !libNameSet.has(e.name.toLowerCase()))
               .sort((a, b) => a.name.localeCompare(b.name))
-              .map(e => ({ name: e.name, done: loggedToday.has(e.name.toLowerCase()) }))
+              .map((e) => ({
+                name: e.name,
+                done: loggedToday.has(e.name.toLowerCase()),
+              })),
           ];
         } else {
           // Program selected → "Other" = previously-logged exercises not in the program
-          const programNameSet = new Set(programExs.map(e => e.name.toLowerCase()));
+          const programNameSet = new Set(
+            programExs.map((e) => e.name.toLowerCase()),
+          );
           allOtherExs = allExArr
-            .filter(e => !programNameSet.has(e.name.toLowerCase()))
+            .filter((e) => !programNameSet.has(e.name.toLowerCase()))
             .sort((a, b) => a.name.localeCompare(b.name))
-            .map(e => ({ name: e.name, done: loggedToday.has(e.name.toLowerCase()) }));
+            .map((e) => ({
+              name: e.name,
+              done: loggedToday.has(e.name.toLowerCase()),
+            }));
         }
 
         pickerData = { programName, programExs, allOtherExs };
 
         // Re-render if picker is already open
-        if (pickerOpen) renderExerciseDropdown(document.getElementById('log-exercise').value.trim());
+        if (pickerOpen)
+          renderExerciseDropdown(
+            document.getElementById("log-exercise").value.trim(),
+          );
       }
 
       function renderExerciseDropdown(filter) {
-        const dd = document.getElementById('exercise-dropdown');
+        const dd = document.getElementById("exercise-dropdown");
         const { programName, programExs, allOtherExs } = pickerData;
         const q = filter.toLowerCase().trim();
-        let html = '';
+        let html = "";
 
         // ── Program section ──
-        const filtProg = programExs.filter(e => !q || e.name.toLowerCase().includes(q));
+        const filtProg = programExs.filter(
+          (e) => !q || e.name.toLowerCase().includes(q),
+        );
         if (filtProg.length) {
           html += `<div class="px-3 pt-2.5 pb-1 text-[10px] font-bold text-indigo-400 uppercase tracking-widest">${escHtml(programName)}</div>`;
           // Unlogged first, then done (greyed)
-          const unlogged = filtProg.filter(e => !e.done);
-          const done     = filtProg.filter(e =>  e.done);
-          [...unlogged, ...done].forEach(e => {
+          const unlogged = filtProg.filter((e) => !e.done);
+          const done = filtProg.filter((e) => e.done);
+          [...unlogged, ...done].forEach((e) => {
             html += exOption(e.name, e.muscleGroup, e.done, true);
           });
         }
 
         // ── Other exercises ──
-        const filtOther = allOtherExs.filter(e => !q || e.name.toLowerCase().includes(q));
+        const filtOther = allOtherExs.filter(
+          (e) => !q || e.name.toLowerCase().includes(q),
+        );
         if (filtOther.length) {
           if (filtProg.length) {
             html += `<div class="mx-3 my-1 border-t border-gray-700/60"></div>`;
             html += `<div class="px-3 pb-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Other</div>`;
           }
-          filtOther.forEach(e => html += exOption(e.name, '', e.done, false));
+          filtOther.forEach(
+            (e) => (html += exOption(e.name, "", e.done, false)),
+          );
         }
 
         // ── "Add new" option when typing something not in list ──
-        const allNames = [...programExs, ...allOtherExs].map(e => e.name.toLowerCase());
+        const allNames = [...programExs, ...allOtherExs].map((e) =>
+          e.name.toLowerCase(),
+        );
         if (filter && !allNames.includes(q)) {
-          if (html) html += `<div class="mx-3 my-1 border-t border-gray-700/60"></div>`;
+          if (html)
+            html += `<div class="mx-3 my-1 border-t border-gray-700/60"></div>`;
           html += `
             <button type="button" data-pick="${escHtml(filter)}" onmousedown="selectExercise(this.dataset.pick)"
               class="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-700 transition-colors text-left">
@@ -1247,24 +1280,24 @@
 
         dd.innerHTML = html;
         dd.scrollTop = 0;
-        dd.classList.remove('hidden');
+        dd.classList.remove("hidden");
       }
 
       /** Build a single option row */
       function exOption(name, muscle, done) {
-        const textCls    = done ? 'text-gray-400' : 'text-white';
+        const textCls = done ? "text-gray-400" : "text-white";
         const checkBadge = done
           ? `<span class="flex items-center gap-1 text-green-500 text-xs font-bold shrink-0">
                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                </svg>Done</span>`
-          : '';
+          : "";
         const muscleBadge = muscle
           ? `<span class="text-[10px] text-gray-500 shrink-0">${escHtml(muscle)}</span>`
-          : '';
+          : "";
         return `
           <button type="button" data-pick="${escHtml(name)}" onmousedown="selectExercise(this.dataset.pick)"
-            class="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-700 active:bg-gray-600 transition-colors text-left ${done ? 'opacity-70' : ''}">
+            class="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-700 active:bg-gray-600 transition-colors text-left ${done ? "opacity-70" : ""}">
             <span class="flex items-center gap-2 min-w-0">
               <span class="text-sm font-medium ${textCls} truncate">${escHtml(name)}</span>
               ${muscleBadge}
@@ -1275,51 +1308,64 @@
 
       /** Select an exercise from the picker */
       async function selectExercise(name) {
-        document.getElementById('log-exercise').value = name;
-        document.getElementById('exercise-dropdown').classList.add('hidden');
+        document.getElementById("log-exercise").value = name;
+        document.getElementById("exercise-dropdown").classList.add("hidden");
         pickerOpen = false;
 
         // Show last-logged hint
-        const hint = document.getElementById('last-hint');
-        const all  = await db.exercises.toArray();
-        const ex   = all.find(x => x.name.toLowerCase() === name.toLowerCase());
+        const hint = document.getElementById("last-hint");
+        const all = await db.exercises.toArray();
+        const ex = all.find((x) => x.name.toLowerCase() === name.toLowerCase());
         if (ex) {
-          const lastSet = await db.sets.where('exerciseId').equals(ex.id).last();
+          const lastSet = await db.sets
+            .where("exerciseId")
+            .equals(ex.id)
+            .last();
           if (lastSet) {
-            const feedbackPart = lastSet.feedback ? ` · ${lastSet.feedback}` : '';
+            const feedbackPart = lastSet.feedback
+              ? ` · ${lastSet.feedback}`
+              : "";
             hint.innerHTML = `Last: <strong>${lastSet.weight} ${lastSet.unit || unit} × ${lastSet.reps} reps</strong>${escHtml(feedbackPart)}`;
-            hint.classList.remove('hidden');
-          } else { hint.classList.add('hidden'); }
-        } else { hint.classList.add('hidden'); }
+            hint.classList.remove("hidden");
+          } else {
+            hint.classList.add("hidden");
+          }
+        } else {
+          hint.classList.add("hidden");
+        }
 
-        document.getElementById('log-weight').focus();
+        document.getElementById("log-weight").focus();
       }
 
       // Open picker on focus
-      document.getElementById('log-exercise').addEventListener('focus', async () => {
-        pickerOpen = true;
-        await populateExerciseList(getLogDate() || todayStr());
-        renderExerciseDropdown(document.getElementById('log-exercise').value.trim());
-      });
+      document
+        .getElementById("log-exercise")
+        .addEventListener("focus", async () => {
+          pickerOpen = true;
+          await populateExerciseList(getLogDate() || todayStr());
+          renderExerciseDropdown(
+            document.getElementById("log-exercise").value.trim(),
+          );
+        });
 
       // Filter as user types
-      document.getElementById('log-exercise').addEventListener('input', e => {
+      document.getElementById("log-exercise").addEventListener("input", (e) => {
         renderExerciseDropdown(e.target.value.trim());
       });
 
       // Close on blur (small delay so onmousedown fires first)
-      document.getElementById('log-exercise').addEventListener('blur', () => {
+      document.getElementById("log-exercise").addEventListener("blur", () => {
         setTimeout(() => {
-          document.getElementById('exercise-dropdown').classList.add('hidden');
+          document.getElementById("exercise-dropdown").classList.add("hidden");
           pickerOpen = false;
         }, 200);
       });
 
       // Close on outside click
-      document.addEventListener('click', e => {
-        const wrap = document.getElementById('exercise-picker-wrap');
+      document.addEventListener("click", (e) => {
+        const wrap = document.getElementById("exercise-picker-wrap");
         if (wrap && !wrap.contains(e.target)) {
-          document.getElementById('exercise-dropdown').classList.add('hidden');
+          document.getElementById("exercise-dropdown").classList.add("hidden");
           pickerOpen = false;
         }
       });
