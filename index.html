@@ -534,6 +534,9 @@
             <!-- Monthly summary -->
             <div id="cal-summary" class="mt-4"></div>
 
+            <!-- Period intake stats (7d / 14d / 30d / YTD) -->
+            <div id="cal-intake-stats" class="mt-4"></div>
+
             <!-- Monthly log list (all entries in visible month, latest → earliest) -->
             <div id="cal-month-log" class="mt-4"></div>
           </div>
@@ -2407,6 +2410,7 @@
 
         if (!entries.length) {
           monthLog.innerHTML = `<p class="text-gray-500 text-center text-sm py-4">No coffee logged in ${MONTH_NAMES[month]} ${year}.</p>`;
+          await renderCoffeeIntakeStats();
           return;
         }
 
@@ -2455,6 +2459,95 @@
         </div>`;
       })
       .join("")}`;
+
+        await renderCoffeeIntakeStats();
+      }
+
+      // ── Period intake stats ──────────────────────────────────────────
+      async function renderCoffeeIntakeStats() {
+        const el  = document.getElementById('cal-intake-stats');
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+
+        // Build start date strings for each period
+        function daysAgo(n) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - (n - 1));
+          return d.toISOString().split('T')[0];
+        }
+        const todayISO = now.toISOString().split('T')[0];
+        const ytdStart = `${now.getFullYear()}-01-01`;
+        const ytdDays  = Math.round((now - new Date(ytdStart)) / 86400000) + 1;
+
+        // Sum shots in a date range, divide by total calendar days (zeros included)
+        async function avgForPeriod(start, days) {
+          const rows = await db.coffee.where('date').between(start, todayISO, true, true).toArray();
+          const total = rows.reduce((s, e) => s + (e.shots || 0), 0);
+          return total / days;
+        }
+
+        const [a7, a14, a30, aYTD] = await Promise.all([
+          avgForPeriod(daysAgo(7),   7),
+          avgForPeriod(daysAgo(14), 14),
+          avgForPeriod(daysAgo(30), 30),
+          avgForPeriod(ytdStart,    ytdDays),
+        ]);
+
+        const periods = [
+          { label: 'Last 7 days',  avg: a7   },
+          { label: 'Last 14 days', avg: a14  },
+          { label: 'Last 30 days', avg: a30  },
+          { label: 'YTD',          avg: aYTD },
+        ];
+
+        function meterInfo(avg) {
+          if (avg < 1) return { color: '#6b7280', label: 'Very Low'  };
+          if (avg < 2) return { color: '#3b82f6', label: 'Low'       };
+          if (avg < 4) return { color: '#22c55e', label: 'Optimal'   };
+          if (avg < 5) return { color: '#eab308', label: 'Moderate'  };
+          if (avg < 6) return { color: '#f97316', label: 'High'      };
+          return             { color: '#ef4444', label: 'Dangerous'  };
+        }
+
+        el.innerHTML = `
+          <div class="bg-gray-800 rounded-2xl p-4 border border-gray-700/40">
+            <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+              Avg Daily Shots
+              <span class="text-gray-600 font-normal normal-case ml-1">WHO optimal ≈ 4</span>
+            </div>
+            ${periods.map(({ label, avg }) => {
+              const m   = meterInfo(avg);
+              const pct = Math.min(avg / 8 * 100, 100).toFixed(1);
+              return `
+                <div class="mb-3 last:mb-0">
+                  <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-xs text-gray-400">${label}</span>
+                    <div class="flex items-center gap-2">
+                      <span class="text-sm font-bold text-white">${avg.toFixed(1)}</span>
+                      <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                        style="background:${m.color}28;color:${m.color}">${m.label}</span>
+                    </div>
+                  </div>
+                  <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full" style="width:${pct}%;background:${m.color}"></div>
+                  </div>
+                </div>`;
+            }).join('')}
+            <div class="flex flex-wrap gap-x-3 gap-y-1 mt-3 pt-3 border-t border-gray-700/40">
+              ${[
+                { color: '#6b7280', label: '<1 Very Low'  },
+                { color: '#3b82f6', label: '1–2 Low'      },
+                { color: '#22c55e', label: '2–4 Optimal'  },
+                { color: '#eab308', label: '4–5 Moderate' },
+                { color: '#f97316', label: '5–6 High'     },
+                { color: '#ef4444', label: '6+ Dangerous' },
+              ].map(l => `
+                <span class="flex items-center gap-1 text-[10px] text-gray-500">
+                  <span class="w-2 h-2 rounded-full shrink-0" style="background:${l.color}"></span>
+                  ${l.label}
+                </span>`).join('')}
+            </div>
+          </div>`;
       }
 
       function shiftCalMonth(delta) {
